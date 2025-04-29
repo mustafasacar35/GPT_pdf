@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hasta ve Prompt Yönetim Uygulaması</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <style>
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .main-content {
+      display: flex;
+      flex: 1;
+    }
+    
+    .sidebar {
+      width: 280px;
+      background-color: #f8f9fa;
+      border-right: 1px solid #dee2e6;
+      padding: 1rem 0;
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+      position: sticky;
+      top: 56px;
+    }
+    
+    .content-area {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .navbar-brand {
+      padding-left: 15px;
+    }
+    
+    .patient-filter {
+      padding: 10px 15px;
+    }
+    
+    .patient-list {
+      max-height: calc(100vh - 250px);
+      overflow-y: auto;
+    }
+    
+    .patient-item {
+      padding: 8px 15px;
+      border-bottom: 1px solid #dee2e6;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    
+    .patient-item:hover {
+      background-color: #e9ecef;
+    }
+    
+    .patient-item.active {
+      background-color: #0d6efd;
+      color: white;
+    }
+    
+    .patient-item.active .btn-outline-success,
+    .patient-item.active .btn-outline-primary,
+    .patient-item.active .btn-outline-secondary,
+    .patient-item.active .btn-outline-danger {
+      color: white;
+      border-color: white;
+    }
+    
+    .patient-item.active .btn-outline-success:hover,
+    .patient-item.active .btn-outline-primary:hover,
+    .patient-item.active .btn-outline-secondary:hover,
+    .patient-item.active .btn-outline-danger:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .patient-actions {
+      display: none;
+    }
+    
+    .patient-item:hover .patient-actions {
+      display: flex !important;
+    }
+    
+    .tab-content {
+      padding: 20px 0;
+    }
+    
+    .message-history {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .message-item {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    .message-gpt {
+      background-color: #f0f7ff;
+      border-left: 3px solid #0d6efd;
+    }
+    
+    .message-controls {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .archive-toggle {
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .archive-toggle.active {
+      background-color: #28a745;
+      color: white;
+    }
+    
+    .archive-toggle.archived {
+      background-color: #6c757d;
+      color: white;
+    }
+    
+    #openaiApiKey {
+      max-width: 350px;
+    }
+    
+    .image-preview {
+      max-width: 100px;
+      margin: 5px;
+    }
+    
+    .prompt-selector {
+      margin-bottom: 15px;
+    }
+    
+    .status-indicator {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 5px;
+    }
+    
+    .status-active {
+      background-color: #28a745;
+      color: white;
+    }
+    
+    .status-archived {
+      background-color: #6c757d;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Hasta ve Prompt Yönetim Uygulaması</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">
+              <i class="bi bi-gear"></i> Ayarlar
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main-content">
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+      <div class="d-flex justify-content-between align-items-center px-3 mb-2">
+        <h5 class="mb-0">Hasta Listesi</h5>
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#patientModal">
+          <i class="bi bi-plus-circle"></i> Yeni
+        </button>
+      </div>
+      
+      <!-- Patient Filter -->
+      <div class="patient-filter">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control form-control-sm" id="patientSearch" placeholder="Hasta ara...">
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="clearSearch">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+        
+        <div class="btn-group btn-group-sm w-100">
+          <button id="showActiveBtn" class="btn btn-outline-primary active">Aktif</button>
+          <button id="showArchivedBtn" class="btn btn-outline-secondary">Arşiv</button>
+        </div>
+      </div>
+      
+      <!-- Patient List -->
+      <div class="patient-list" id="patientList">
+        <!-- Patient items will be populated here -->
+      </div>
+      
+      <!-- Patient Action Buttons (Mobile & Small Screens) -->
+      <div class="d-block d-md-none p-3 border-top">
+        <div class="btn-group btn-group-sm w-100">
+          <button class="btn btn-outline-success" id="editPatientBtnMobile" disabled>
+            <i class="bi bi-pencil"></i> Düzenle
+          </button>
+          <button class="btn btn-outline-primary" id="toggleArchiveBtnMobile" disabled>
+            <i class="bi bi-archive"></i> Arşivle
+          </button>
+          <button class="btn btn-outline-danger" id="deletePatientBtnMobile" disabled>
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="content-area">
+      <div id="patientDetail">
+        <!-- Patient detail will be displayed here when selected -->
+        <div class="text-center p-5 text-muted">
+          <i class="bi bi-person-circle" style="font-size: 4rem;"></i>
+          <h4 class="mt-3">Lütfen sol menüden bir hasta seçin</h4>
+          <p>veya yeni bir hasta ekleyin</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Ayarlar</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="openaiApiKey" class="form-label">OpenAI API Anahtarı</label>
+            <input type="password" class="form-control" id="openaiApiKey" placeholder="API anahtarınızı girin">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+          <button type="button" class="btn btn-primary" id="saveSettings">Kaydet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Patient Modal -->
+  <div class="modal fade" id="patientModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="patientModalTitle">Yeni Hasta Ekle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="patientForm">
+            <input type="hidden" id="editPatientId" value="">
+            <div class="mb-3">
+              <label for="patientName" class="form-label">Hasta İsmi</label>
+              <input type="text" class="form-control" id="patientName" required>
+            </div>
+            <div class="mb-3">
+              <label for="patientWeight" class="form-label">Kilo (kg)</label>
+              <input type="number" class="form-control" id="patientWeight" required>
+            </div>
+            <div class="mb-3">
+              <label for="patientDescription" class="form-label">Açıklama</label>
+              <textarea class="form-control" id="patientDescription" rows="3"></textarea>
+            </div>
+            <div class="mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="patientArchived">
+                <label class="form-check-label" for="patientArchived">
+                  Arşivlenmiş
+                </label>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="button" class="btn btn-primary" id="savePatient">Kaydet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Prompt Modal -->
+  <div class="modal fade" id="promptModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="promptModalTitle">Yeni Prompt Ekle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="promptForm">
+            <input type="hidden" id="promptId" value="">
+            <div class="mb-3">
+              <label for="promptTitle" class="form-label">Başlık</label>
+              <input type="text" class="form-control" id="promptTitle" required>
+            </div>
+            <div class="mb-3">
+              <label for="promptContent" class="form-label">İçerik</label>
+              <textarea class="form-control" id="promptContent" rows="6" required></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="button" class="btn btn-primary" id="savePrompt">Kaydet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <script>
+    // Veritabanı
+    let patients = JSON.parse(localStorage.getItem('patients')) || [];
+    let prompts = JSON.parse(localStorage.getItem('prompts')) || [];
+    let conversations = JSON.parse(localStorage.getItem('conversations')) || {};
+    let currentPDFText = '';
+    let selectedPatientId = null;
+    let viewMode = 'active';  // 'active' veya 'archived'
+    
+    // Ayarlar
+    const apiKey = localStorage.getItem('openaiApiKey') || '';
+    document.getElementById('openaiApiKey').value = apiKey;
+    
+    // PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
+    // Veritabanı fonksiyonları
+    function savePrompts() {
+      localStorage.setItem('prompts', JSON.stringify(prompts));
+    }
+    
+    function savePatients() {
+      localStorage.setItem('patients', JSON.stringify(patients));
+    }
+    
+    function saveConversations() {
+      localStorage.setItem('conversations', JSON.stringify(conversations));
+    }
+    
+    // Hasta listesini renderla
+    function renderPatientList() {
+      const patientList = document.getElementById('patientList');
+      patientList.innerHTML = '';
+      
+      const searchTerm = document.getElementById('patientSearch').value.toLowerCase();
+      
+      const filteredPatients = patients.filter(patient => {
+        const matchesSearch = patient.name.toLowerCase().includes(searchTerm);
+        const matchesStatus = viewMode === 'active' ? !patient.archived : patient.archived;
+        return matchesSearch && matchesStatus;
+      });
+      
+      if (filteredPatients.length === 0) {
+        patientList.innerHTML = '<div class="text-center text-muted my-3">Hasta bulunamadı</div>';
+        return;
+      }
+      
+      filteredPatients.forEach(patient => {
+        const div = document.createElement('div');
+        div.className = `patient-item ${selectedPatientId === patient.id ? 'active' : ''}`;
+        div.onclick = () => selectPatient(patient.id);
+        
+        div.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <div>
+              ${patient.name} 
+              <span class="status-indicator ${patient.archived ? 'status-archived' : 'status-active'}">
+                ${patient.archived ? 'Arşiv' : 'Aktif'}
+              </span>
+            </div>
+            <div class="patient-actions d-none d-md-flex">
+              <button class="btn btn-sm btn-outline-success me-1 edit-patient-btn" data-id="${patient.id}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-${patient.archived ? 'primary' : 'secondary'} me-1 toggle-archive-btn" data-id="${patient.id}">
+                <i class="bi bi-${patient.archived ? 'arrow-counterclockwise' : 'archive'}"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger delete-patient-btn" data-id="${patient.id}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        
+        patientList.appendChild(div);
+      });
+    }
+    
+    // Hasta seçimi
+    function selectPatient(patientId) {
+      selectedPatientId = patientId;
+      renderPatientList();
+      renderPatientDetail(patientId);
+      
+      // Mobil butonları etkinleştir
+      document.getElementById('editPatientBtnMobile').disabled = false;
+      document.getElementById('toggleArchiveBtnMobile').disabled = false;
+      document.getElementById('deletePatientBtnMobile').disabled = false;
+      
+      // Mobil butonların yazılarını güncelle
+      const patient = patients.find(p => p.id === patientId);
+      if (patient) {
+        const toggleArchiveBtn = document.getElementById('toggleArchiveBtnMobile');
+        toggleArchiveBtn.innerHTML = patient.archived ? 
+          '<i class="bi bi-arrow-counterclockwise"></i> Aktifleştir' : 
+          '<i class="bi bi-archive"></i> Arşivle';
+        toggleArchiveBtn.className = patient.archived ? 
+          'btn btn-outline-primary' : 
+          'btn btn-outline-secondary';
+      }
+    }
+    
+    // Hasta detayını renderla
+    function renderPatientDetail(patientId) {
+      const patientDetail = document.getElementById('patientDetail');
+      const patient = patients.find(p => p.id === patientId);
+      
+      if (!patient) {
+        patientDetail.innerHTML = '<div class="alert alert-danger">Hasta bulunamadı</div>';
+        return;
+      }
+      
+      // Eğer hasta için konuşma yoksa, boş bir dizi oluştur
+      if (!conversations[patientId]) {
+        conversations[patientId] = [];
+        saveConversations();
+      }
+      
+      patientDetail.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3>${patient.name} 
+            <small class="text-muted">(${patient.weight} kg)</small>
+            <span class="status-indicator ${patient.archived ? 'status-archived' : 'status-active'}">
+              ${patient.archived ? 'Arşiv' : 'Aktif'}
+            </span>
+          </h3>
+          <div>
+            <button class="btn btn-outline-${patient.archived ? 'success' : 'secondary'}" id="toggleArchiveBtn">
+              <i class="bi bi-${patient.archived ? 'arrow-counterclockwise' : 'archive'}"></i>
+              ${patient.archived ? 'Aktife Al' : 'Arşivle'}
+            </button>
+            <button class="btn btn-outline-danger" id="deletePatientBtn">
+              <i class="bi bi-trash"></i> Sil
+            </button>
+          </div>
+        </div>
+        
+        <p><strong>Açıklama:</strong> ${patient.description}</p>
+        
+        <ul class="nav nav-tabs" id="patientTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-tab-pane" type="button" role="tab">Mesaj Geçmişi</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="new-message-tab" data-bs-toggle="tab" data-bs-target="#new-message-tab-pane" type="button" role="tab">Yeni Mesaj</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="prompts-tab" data-bs-toggle="tab" data-bs-target="#prompts-tab-pane" type="button" role="tab">Prompt Yönetimi</button>
+          </li>
+        </ul>
+        
+        <div class="tab-content" id="patientTabsContent">
+          <!-- Mesaj Geçmişi Tab -->
+          <div class="tab-pane fade show active" id="history-tab-pane" role="tabpanel" tabindex="0">
+            <div class="message-history" id="messageHistory">
+              ${renderMessageHistory(patientId)}
+            </div>
+          </div>
+          
+          <!-- Yeni Mesaj Tab -->
+          <div class="tab-pane fade" id="new-message-tab-pane" role="tabpanel" tabindex="0">
+            <div class="card">
+              <div class="card-body">
+                <h5>Yeni GPT Analizi</h5>
+                
+                <div class="mb-3">
+                  <label class="form-label">Prompt Seçimi</label>
+                  <div class="prompt-selector" id="promptSelector">
+                    ${renderPromptCheckboxes(patientId)}
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="includeHistory">
+                    <label class="form-check-label" for="includeHistory">
+                      Önceki mesajları dahil et
+                    </label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="includePatientDescription">
+                    <label class="form-check-label" for="includePatientDescription">
+                      Hasta açıklamasını dahil et
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Ekstra Mesaj:</label>
+                  <textarea class="form-control" id="extraMessage" rows="3"></textarea>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">PDF Yükle:</label>
+                  <input type="file" class="form-control" accept="application/pdf" id="pdfFile">
+                </div>
+                
+                <button class="btn btn-primary" id="callGptBtn">
+                  <i class="bi bi-robot"></i> GPT Analizi Yap
+                </button>
+              </div>
+            </div>
+            
+            <div class="card mt-3">
+              <div class="card-body">
+                <h5>GPT Yanıtı</h5>
+                <div class="d-flex justify-content-end mb-2">
+                  <button class="btn btn-sm btn-outline-success" id="saveResponseBtn" disabled>
+                    <i class="bi bi-save"></i> Yanıtı Kaydet
+                  </button>
+                </div>
+                <textarea class="form-control" id="gptResponse" rows="10" placeholder="GPT yanıtı burada görünecek"></textarea>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Prompt Yönetimi Tab -->
+          <div class="tab-pane fade" id="prompts-tab-pane" role="tabpanel" tabindex="0">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5>Prompt Arşivi</h5>
+              <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#promptModal">
+                <i class="bi bi-plus-circle"></i> Yeni Prompt
+              </button>
+            </div>
+            
+            <div id="promptList">
+              ${renderPromptList()}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Event listeners
+      document.getElementById('toggleArchiveBtn').addEventListener('click', () => toggleArchivePatient(patientId));
+      document.getElementById('deletePatientBtn').addEventListener('click', () => deletePatient(patientId));
+      document.getElementById('callGptBtn').addEventListener('click', () => prepareGptCall(patientId));
+      document.getElementById('pdfFile').addEventListener('change', handlePDFUpload);
+      
+      const saveResponseBtn = document.getElementById('saveResponseBtn');
+      saveResponseBtn.addEventListener('click', () => saveGptResponse(patientId));
+      
+      document.getElementById('gptResponse').addEventListener('input', function() {
+        saveResponseBtn.disabled = this.value.trim() === '';
+      });
+    }
+    
+    // Mesaj geçmişini renderla
+    function renderMessageHistory(patientId) {
+      const patientConversations = conversations[patientId] || [];
+      
+      if (patientConversations.length === 0) {
+        return '<div class="text-center text-muted py-4">Henüz mesaj geçmişi yok</div>';
+      }
+      
+      return patientConversations.map((message, index) => `
+        <div class="message-item message-gpt">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <strong>GPT Yanıtı</strong>
+              <small class="text-muted ms-2">${new Date(message.timestamp).toLocaleString()}</small>
+            </div>
+            <div class="message-controls">
+              <button class="btn btn-sm btn-outline-primary edit-message" data-index="${index}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger delete-message" data-index="${index}">
+                <i class="bi bi-trash"></i>
+              </button>
+              <div class="form-check form-switch">
+                <input class="form-check-input include-message" type="checkbox" data-index="${index}" id="includeMsg${index}">
+                <label class="form-check-label" for="includeMsg${index}">Dahil et</label>
+              </div>
+            </div>
+          </div>
+          <div class="message-content">${message.content.replace(/\n/g, '<br>')}</div>
+        </div>
+      `).join('');
+    }
+    
+    // Prompt checkbox'larını renderla
+    function renderPromptCheckboxes() {
+      if (prompts.length === 0) {
+        return '<div class="text-muted">Henüz prompt eklenmemiş</div>';
+      }
+      
+      return prompts.map((prompt, index) => `
+        <div class="form-check">
+          <input class="form-check-input prompt-checkbox" type="checkbox" value="${index}" id="prompt-${index}">
+          <label class="form-check-label" for="prompt-${index}">${prompt.title}</label>
+        </div>
+      `).join('');
+    }
+    
+    // Prompt listesini renderla
+    function renderPromptList() {
+      if (prompts.length === 0) {
+        return '<div class="text-center text-muted py-4">Henüz prompt eklenmemiş</div>';
+      }
+      
+      return prompts.map((prompt, index) => `
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">${prompt.title}</h6>
+            <div>
+              <button class="btn btn-sm btn-outline-primary edit-prompt" data-index="${index}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger delete-prompt" data-index="${index}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <pre class="mb-0" style="white-space: pre-wrap;">${prompt.content}</pre>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    // Hasta arşivle/aktifleştir
+    function toggleArchivePatient(patientId) {
+      const patientIndex = patients.findIndex(p => p.id === patientId);
+      if (patientIndex !== -1) {
+        patients[patientIndex].archived = !patients[patientIndex].archived;
+        savePatients();
+        renderPatientList();
+        renderPatientDetail(patientId);
+      }
+    }
+    
+    // Hasta sil
+    function deletePatient(patientId) {
+      if (!confirm('Bu hastayı silmek istediğinize emin misiniz?')) return;
+      
+      patients = patients.filter(p => p.id !== patientId);
+      delete conversations[patientId];
+      savePatients();
+      saveConversations();
+      
+      selectedPatientId = null;
+      renderPatientList();
+      
+      document.getElementById('patientDetail').innerHTML = `
+        <div class="text-center p-5 text-muted">
+          <i class="bi bi-person-circle" style="font-size: 4rem;"></i>
+          <h4 class="mt-3">Lütfen sol menüden bir hasta seçin</h4>
+          <p>veya yeni bir hasta ekleyin</p>
+        </div>
+      `;
+    }
+    
+    // Prompt düzenle
+    function editPrompt(index) {
+      const prompt = prompts[index];
+      document.getElementById('promptId').value = index;
+      document.getElementById('promptTitle').value = prompt.title;
+      document.getElementById('promptContent').value = prompt.content;
+      document.getElementById('promptModalTitle').textContent = 'Prompt Düzenle';
+      
+      const promptModal = new bootstrap.Modal(document.getElementById('promptModal'));
+      promptModal.show();
+    }
+    
+    // Prompt sil
+    function deletePrompt(index) {
+      if (!confirm('Bu promptu silmek istediğinize emin misiniz?')) return;
+      
+      prompts.splice(index, 1);
+      savePrompts();
+      
+      if (selectedPatientId) {
+        renderPatientDetail(selectedPatientId);
+      }
+    }
+    
+    // PDF yükleme
+    async function handlePDFUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const typedarray = new Uint8Array(e.target.result);
+          const pdf = await pdfjsLib.getDocument(typedarray).promise;
+          let text = '';
+          
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ');
+          }
+          
+          currentPDFText = text;
+          alert('PDF başarıyla yüklendi');
+        };
+        
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        alert('PDF yüklenirken hata oluştu: ' + error.message);
+      }
+    }
+    
+    // GPT çağrısını hazırla
+    async function prepareGptCall(patientId) {
+      const apiKey = document.getElementById('openaiApiKey').value.trim();
+      if (!apiKey) {
+        alert('API anahtarını girin');
+        return;
+      }
+      
+      const patient = patients.find(p => p.id === patientId);
+      if (!patient) return;
+      
+      // Seçilen prompt'ları al
+      const promptElements = document.querySelectorAll('.prompt-checkbox:checked');
+      const selectedPrompts = Array.from(promptElements).map(el => {
+        const index = parseInt(el.value);
+        return prompts[index].content;
+      }).join('\n\n');
+      
+      // Ekstra mesajı al
+      const extraMessage = document.getElementById('extraMessage').value;
+      
+      // Hasta açıklaması dahil edilecek mi?
+      const includePatientDescription = document.getElementById('includePatientDescription').checked;
+      let patientInfo = '';
+      
+      if (includePatientDescription && patient.description) {
+        patientInfo = `--- Hasta Bilgileri ---\nHasta: ${patient.name}\nKilo: ${patient.weight} kg\nAçıklama: ${patient.description}\n--- Hasta Bilgileri Sonu ---\n\n`;
+      }
+      
+      // Önceki mesajlar dahil edilecek mi?
+      const includeHistory = document.getElementById('includeHistory').checked;
+      let previousMessages = '';
+      
+      if (includeHistory) {
+        const patientConversations = conversations[patientId] || [];
+        const selectedMessages = Array.from(document.querySelectorAll('.include-message:checked'))
+          .map(el => {
+            const index = parseInt(el.dataset.index);
+            return patientConversations[index].content;
+          }).join('\n\n--- Önceki Mesaj Sonu ---\n\n');
+        
+        if (selectedMessages) {
+          previousMessages = '--- Önceki Mesajlar ---\n\n' + selectedMessages + '\n\n--- Önceki Mesajlar Sonu ---\n\n';
+        }
+      }
+      
+      // Son gönderilecek mesajı oluştur
+      const finalPrompt = `${selectedPrompts}\n\n${patientInfo}${extraMessage}\n\n${previousMessages}\n\n${currentPDFText}`;
+      
+      // GPT'yi çağır
+      callGPT(patientId, finalPrompt);
+    }
+    
+    // GPT API çağrısı
+    async function callGPT(patientId, prompt) {
+      const apiKey = document.getElementById('openaiApiKey').value.trim();
+      const responseArea = document.getElementById('gptResponse');
+      responseArea.value = 'GPT yanıtı bekleniyor...';
+      
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4',
+            messages: [{ role: 'user', content: prompt }]
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          responseArea.value = 'API Hatası: ' + data.error.message;
+          return;
+        }
+        
+        if (data.choices && data.choices[0]) {
+          const content = data.choices[0].message.content;
+          responseArea.value = content;
+          document.getElementById('saveResponseBtn').disabled = false;
+        } else {
+          responseArea.value = 'API yanıtı boş veya hatalı';
+        }
+      } catch (error) {
+        responseArea.value = 'Hata: ' + error.message;
+      }
+    }
+    
+    // GPT yanıtını kaydet
+    function saveGptResponse(patientId) {
+      const responseContent = document.getElementById('gptResponse').value.trim();
+      
+      if (!responseContent) {
+        alert('Kaydedilecek yanıt yok');
+        return;
+      }
+      
+      if (!conversations[patientId]) {
+        conversations[patientId] = [];
+      }
+      
+      conversations[patientId].push({
+        content: responseContent,
+        timestamp: new Date().getTime()
+      });
+      
+      saveConversations();
+      
+      // Mesaj geçmişi tabını göster ve mesaj geçmişini güncelle
+      const historyTab = document.getElementById('history-tab');
+      bootstrap.Tab.getOrCreateInstance(historyTab).show();
+      
+      document.getElementById('messageHistory').innerHTML = renderMessageHistory(patientId);
+      
+      // Mesaj geçmişindeki event listener'ları ekle
+      addMessageEventListeners();
+      
+      alert('Yanıt başarıyla kaydedildi');
+    }
+    
+    // Mesaj geçmişindeki düğmelere olay dinleyicileri ekle
+    function addMessageEventListeners() {
+      // Mesaj düzenleme
+      document.querySelectorAll('.edit-message').forEach(button => {
+        button.addEventListener('click', function() {
+          const index = parseInt(this.dataset.index);
+          const patientConversations = conversations[selectedPatientId] || [];
+          const message = patientConversations[index];
+          
+          document.getElementById('gptResponse').value = message.content;
+          document.getElementById('saveResponseBtn').disabled = false;
+          
+          // Yeni mesaj tabını aç
+          bootstrap.Tab.getOrCreateInstance(document.getElementById('new-message-tab')).show();
+          
+          // Mesajı güncelleme moduna geç
+          const saveResponseBtn = document.getElementById('saveResponseBtn');
+          saveResponseBtn.innerHTML = '<i class="bi bi-save"></i> Güncelle';
+          
+          // Güncelleme fonksiyonunu değiştir
+          saveResponseBtn.onclick = function() {
+            const newContent = document.getElementById('gptResponse').value.trim();
+            
+            if (!newContent) {
+              alert('Güncellenecek içerik boş olamaz');
+              return;
+            }
+            
+            patientConversations[index].content = newContent;
+            patientConversations[index].timestamp = new Date().getTime(); // Güncelleme zamanını da değiştir
+            
+            saveConversations();
+            
+            // Mesaj geçmişi tabını göster ve güncelle
+            bootstrap.Tab.getOrCreateInstance(document.getElementById('history-tab')).show();
+            document.getElementById('messageHistory').innerHTML = renderMessageHistory(selectedPatientId);
+            addMessageEventListeners();
+            
+            // Düğmeyi normal haline getir
+            saveResponseBtn.innerHTML = '<i class="bi bi-save"></i> Yanıtı Kaydet';
+            saveResponseBtn.onclick = () => saveGptResponse(selectedPatientId);
+            
+            alert('Mesaj başarıyla güncellendi');
+          };
+        });
+      });
+      
+      // Mesaj silme
+      document.querySelectorAll('.delete-message').forEach(button => {
+        button.addEventListener('click', function() {
+          if (!confirm('Bu mesajı silmek istediğinize emin misiniz?')) return;
+          
+          const index = parseInt(this.dataset.index);
+          const patientConversations = conversations[selectedPatientId] || [];
+          
+          patientConversations.splice(index, 1);
+          saveConversations();
+          
+          document.getElementById('messageHistory').innerHTML = renderMessageHistory(selectedPatientId);
+          addMessageEventListeners();
+        });
+      });
+    }
+    
+    // Prompt yönetim event listener'ları
+    document.addEventListener('click', function(e) {
+      // Prompt düzenleme
+      if (e.target.closest('.edit-prompt')) {
+        const button = e.target.closest('.edit-prompt');
+        const index = parseInt(button.dataset.index);
+        editPrompt(index);
+      }
+      
+      // Prompt silme
+      if (e.target.closest('.delete-prompt')) {
+        const button = e.target.closest('.delete-prompt');
+        const index = parseInt(button.dataset.index);
+        deletePrompt(index);
+      }
+    });
+    
+    // Hasta işlem düğmelerinin event listener'ları
+    document.addEventListener('click', function(e) {
+      // Hasta düzenleme
+      if (e.target.closest('.edit-patient-btn')) {
+        e.stopPropagation(); // Tıklamanın hasta seçimini tetiklemesini engelle
+        const button = e.target.closest('.edit-patient-btn');
+        const patientId = parseInt(button.dataset.id);
+        editPatient(patientId);
+      }
+      
+      // Hasta arşivleme/aktifleştirme
+      if (e.target.closest('.toggle-archive-btn')) {
+        e.stopPropagation(); // Tıklamanın hasta seçimini tetiklemesini engelle
+        const button = e.target.closest('.toggle-archive-btn');
+        const patientId = parseInt(button.dataset.id);
+        toggleArchivePatient(patientId);
+      }
+      
+      // Hasta silme
+      if (e.target.closest('.delete-patient-btn')) {
+        e.stopPropagation(); // Tıklamanın hasta seçimini tetiklemesini engelle
+        const button = e.target.closest('.delete-patient-btn');
+        const patientId = parseInt(button.dataset.id);
+        deletePatient(patientId);
+      }
+    });
+    
+    // Mobil düğmelerin event listener'ları
+    document.getElementById('editPatientBtnMobile').addEventListener('click', function() {
+      if (selectedPatientId) {
+        editPatient(selectedPatientId);
+      }
+    });
+    
+    document.getElementById('toggleArchiveBtnMobile').addEventListener('click', function() {
+      if (selectedPatientId) {
+        toggleArchivePatient(selectedPatientId);
+      }
+    });
+    
+    document.getElementById('deletePatientBtnMobile').addEventListener('click', function() {
+      if (selectedPatientId) {
+        deletePatient(selectedPatientId);
+      }
+    });
+    
+    // Hasta modal'ı event listener'ları
+    document.getElementById('patientModal').addEventListener('hidden.bs.modal', function () {
+      document.getElementById('patientForm').reset();
+      document.getElementById('editPatientId').value = '';
+      document.getElementById('patientModalTitle').textContent = 'Yeni Hasta Ekle';
+    });
+    
+    // Event Listeners
+    
+    // Ayarları kaydet
+    document.getElementById('saveSettings').addEventListener('click', function() {
+      const apiKey = document.getElementById('openaiApiKey').value.trim();
+      localStorage.setItem('openaiApiKey', apiKey);
+      
+      const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+      modal.hide();
+      
+      alert('Ayarlar kaydedildi');
+    });
+    
+    // Hastayı düzenleme için modal'ı aç
+    function editPatient(patientId) {
+      const patient = patients.find(p => p.id === patientId);
+      if (!patient) return;
+      
+      document.getElementById('patientModalTitle').textContent = 'Hastayı Düzenle';
+      document.getElementById('editPatientId').value = patientId;
+      document.getElementById('patientName').value = patient.name;
+      document.getElementById('patientWeight').value = patient.weight;
+      document.getElementById('patientDescription').value = patient.description;
+      document.getElementById('patientArchived').checked = patient.archived;
+      
+      const patientModal = new bootstrap.Modal(document.getElementById('patientModal'));
+      patientModal.show();
+    }
+    
+    // Yeni hasta kaydet veya güncelle
+    document.getElementById('savePatient').addEventListener('click', function() {
+      const name = document.getElementById('patientName').value.trim();
+      const weight = document.getElementById('patientWeight').value;
+      const description = document.getElementById('patientDescription').value.trim();
+      const archived = document.getElementById('patientArchived').checked;
+      const editId = document.getElementById('editPatientId').value;
+      
+      if (!name || !weight) {
+        alert('Hasta ismi ve kilo alanları zorunludur');
+        return;
+      }
+      
+      if (editId) {
+        // Mevcut hastayı güncelle
+        const patientIndex = patients.findIndex(p => p.id === parseInt(editId));
+        if (patientIndex !== -1) {
+          patients[patientIndex].name = name;
+          patients[patientIndex].weight = weight;
+          patients[patientIndex].description = description;
+          patients[patientIndex].archived = archived;
+          
+          savePatients();
+          selectPatient(parseInt(editId));
+        }
+      } else {
+        // Yeni hasta ekle
+        const newPatient = {
+          id: Date.now(),
+          name,
+          weight,
+          description,
+          archived
+        };
+        
+        patients.push(newPatient);
+        savePatients();
+        selectPatient(newPatient.id);
+      }
+      
+      const modal = bootstrap.Modal.getInstance(document.getElementById('patientModal'));
+      modal.hide();
+      
+      document.getElementById('patientForm').reset();
+      document.getElementById('editPatientId').value = '';
+      document.getElementById('patientModalTitle').textContent = 'Yeni Hasta Ekle';
+    });
+    
+    // Yeni prompt kaydet
+    document.getElementById('savePrompt').addEventListener('click', function() {
+      const title = document.getElementById('promptTitle').value.trim();
+      const content = document.getElementById('promptContent').value.trim();
+      const promptId = document.getElementById('promptId').value;
+      
+      if (!title || !content) {
+        alert('Başlık ve içerik alanları zorunludur');
+        return;
+      }
+      
+      if (promptId === '') {
+        // Yeni prompt
+        prompts.push({ title, content });
+      } else {
+        // Prompt güncelleme
+        const index = parseInt(promptId);
+        prompts[index] = { title, content };
+      }
+      
+      savePrompts();
+      
+      const modal = bootstrap.Modal.getInstance(document.getElementById('promptModal'));
+      modal.hide();
+      
+      document.getElementById('promptForm').reset();
+      document.getElementById('promptId').value = '';
+      document.getElementById('promptModalTitle').textContent = 'Yeni Prompt Ekle';
+      
+      if (selectedPatientId) {
+        renderPatientDetail(selectedPatientId);
+      }
+    });
+    
+    // Hasta filtresi
+    document.getElementById('patientSearch').addEventListener('input', function() {
+      renderPatientList();
+    });
+    
+    // Hasta filtresi temizle
+    document.getElementById('clearSearch').addEventListener('click', function() {
+      document.getElementById('patientSearch').value = '';
+      renderPatientList();
+    });
+    
+    // Aktif/Arşiv filtreleri
+    document.getElementById('showActiveBtn').addEventListener('click', function() {
+      viewMode = 'active';
+      this.classList.add('active');
+      document.getElementById('showArchivedBtn').classList.remove('active');
+      renderPatientList();
+    });
+    
+    document.getElementById('showArchivedBtn').addEventListener('click', function() {
+      viewMode = 'archived';
+      this.classList.add('active');
+      document.getElementById('showActiveBtn').classList.remove('active');
+      renderPatientList();
+    });
+    
+    // Promptları ID'ler ile ilişkilendirme
+    document.getElementById('promptModal').addEventListener('hidden.bs.modal', function () {
+      document.getElementById('promptForm').reset();
+      document.getElementById('promptId').value = '';
+      document.getElementById('promptModalTitle').textContent = 'Yeni Prompt Ekle';
+    });
+    
+    // Başlangıç
+    renderPatientList();
+  </script>
+</body>
+</html>
