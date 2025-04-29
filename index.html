@@ -1720,5 +1720,75 @@ document.addEventListener('DOMContentLoaded', function() {
     // Başlangıç
     renderPatientList();
   </script>
-</body>
+<script>
+async function exportToGithub() {
+  const token = document.getElementById('githubToken').value.trim();
+  const username = document.getElementById('githubUsername').value.trim();
+  const repo = document.getElementById('githubRepo').value.trim();
+  const path = document.getElementById('githubPath').value.trim();
+  const statusDiv = document.getElementById('githubStatus');
+
+  if (!token || !username || !repo || !path) {
+    statusDiv.innerHTML = '<div class="alert alert-danger">Tüm alanları doldurun.</div>';
+    return;
+  }
+
+  statusDiv.innerHTML = '<div class="alert alert-info">Aktarılıyor...</div>';
+
+  const allData = {
+    patients: patients || [],
+    prompts: prompts || [],
+    conversations: conversations || {},
+    exportDate: new Date().toISOString(),
+    settings: {
+      openaiApiKey: localStorage.getItem('openaiApiKey') || null
+    }
+  };
+
+  const jsonData = JSON.stringify(allData, null, 2);
+  const content = btoa(unescape(encodeURIComponent(jsonData)));
+
+  let sha = '';
+  try {
+    const check = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/${path}`, {
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github.v3+json'
+      }
+    });
+    if (check.ok) {
+      const fileData = await check.json();
+      sha = fileData.sha;
+    }
+  } catch (e) {
+    console.log('Yeni dosya oluşturulacak.');
+  }
+
+  const upload = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `token ${token}`,
+      Accept: 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: `Hasta verisi güncellemesi - ${new Date().toLocaleString()}`,
+      content: content,
+      sha: sha || undefined
+    })
+  });
+
+  const result = await upload.json();
+
+  if (upload.ok) {
+    statusDiv.innerHTML = `
+      <div class="alert alert-success">
+        ✅ GitHub'a başarıyla yüklendi:
+        <a href="${result.content.html_url}" target="_blank">${result.content.path}</a>
+      </div>`;
+  } else {
+    statusDiv.innerHTML = '<div class="alert alert-danger">GitHub yükleme başarısız: ' + (result.message || 'Bilinmeyen hata') + '</div>';
+  }
+}
+</script></body>
 </html>
